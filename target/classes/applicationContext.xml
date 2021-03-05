@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context" xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd">
+
+
+    <!--1.扫描包-->
+    <context:component-scan base-package="com.bruceliu.*"/>
+
+    <!--2.加载数据库信息文件-->
+    <context:property-placeholder location="classpath:jdbc.properties"/>
+
+    <!--3.配置德鲁伊数据库连接池-->
+    <bean id="ds" class="com.alibaba.druid.pool.DruidDataSource">
+        <property name="driverClassName" value="${jdbc.driver}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+        <property name="url" value="${jdbc.url}"/>
+    </bean>
+
+    <!--4.配置MyBatis的sqlSession工厂  Spring框架管理了session
+       如果需要使用MyBatisPlus那么就把 SqlSessionFactoryBean 替换为  MybatisSqlSessionFactoryBean
+    -->
+    <bean id="sessionFactory" class="com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean">
+        <property name="dataSource" ref="ds"/>
+        <!--指定Mapper的映射文件位置-->
+        <property name="mapperLocations" value="classpath:com/bruceliu/mapper/*.xml"/>
+        <!--指定实体类的别名-->
+        <property name="typeAliasesPackage" value="com.bruceliu.bean"/>
+        <!--配置MyBatisPlus的分页插件-->
+        <property name="plugins">
+            <array>
+                <bean class="com.baomidou.mybatisplus.extension.plugins.PaginationInterceptor"/>
+            </array>
+        </property>
+    </bean>
+
+    <!--5.Spring框架扫描Mapper层接口，自动给Mapper层接口生成代理对象-->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.bruceliu.mapper"/>
+    </bean>
+
+
+    <!--6.配置事务管理  事务：要么全部成功，要么全部失败！ 原子性、一致性、隔离性、持久性-->
+    <!--配置MyBatis的事务平台管理器-->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <!--注入数据源-->
+        <property name="dataSource" ref="ds"/>
+    </bean>
+
+    <!--
+        Spring的声明式事务目前有2种配置方式：
+           1.XML配置声明式事务 (过时 了解)
+           2.注解配置声明式事务 (推荐 掌握)
+    -->
+    <!--配置事务增强-->
+    <tx:advice id="adviser" transaction-manager="transactionManager">
+       <!--配置哪些方法需要配代理植入事务-->
+        <tx:attributes>
+            <!--
+               propagation="REQUIRED" 一个方法，需要事务 REQUIRED！
+
+               timeout="-1"  默认单位是秒  一个业务方法在指定的时间内没有执行完，那么就自动回滚！
+            -->
+            <tx:method name="transferMioney" propagation="REQUIRED" timeout="-1" read-only="false" no-rollback-for="java.lang.ArithmeticException"/>
+
+            <tx:method name="add*" propagation="REQUIRED" isolation="REPEATABLE_READ" read-only="false"/>
+            <tx:method name="insert*" propagation="REQUIRED" isolation="REPEATABLE_READ" read-only="false"/>
+            <tx:method name="update*" propagation="REQUIRED" isolation="REPEATABLE_READ" read-only="false"/>
+            <tx:method name="del*" propagation="REQUIRED" isolation="REPEATABLE_READ" read-only="false"/>
+
+            <!--查询的话，不需要在事务中进行 查询配置只读事务read-only="true"-->
+            <tx:method name="find*" propagation="NOT_SUPPORTED" isolation="REPEATABLE_READ" read-only="true"/>
+            <tx:method name="search*" propagation="NOT_SUPPORTED" isolation="REPEATABLE_READ" read-only="true"/>
+            <tx:method name="get*" propagation="NOT_SUPPORTED" isolation="REPEATABLE_READ" read-only="true"/>
+
+            <!--propagation="SUPPORTS" 可有可无-->
+            <tx:method name="*" propagation="SUPPORTS" read-only="true" isolation="REPEATABLE_READ"/>
+
+        </tx:attributes>
+    </tx:advice>
+
+    <!--配置AOP切入点-->
+    <aop:config>
+        <aop:pointcut id="pointcut" expression="execution(* com.bruceliu.service.impl.*.*(..))"/>
+        <aop:advisor advice-ref="adviser" pointcut-ref="pointcut"/>
+    </aop:config>
+
+
+
+</beans>
